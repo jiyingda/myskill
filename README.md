@@ -43,46 +43,71 @@ myskill --help
 
 ```bash
 brew install oven-sh/bun/bun     # 装 Bun（如果还没有）
-npm run build:binary             # 产出 dist/myskill 单文件可执行（~60MB）
-./dist/myskill                   # 不需要 Node 运行时即可执行
+
+npm run build:binary             # 仅当前平台（最快），产出 dist/myskill
+npm run build:all                # 一次产出全部 5 个平台（首次会下载各平台 bun runtime）
 ```
+
+`build:all` 产物：
+
+| 平台 | 文件 | 大小 |
+| --- | --- | --- |
+| macOS Apple Silicon | `dist/myskill-darwin-arm64`     | ~61MB |
+| macOS Intel         | `dist/myskill-darwin-x64`       | ~66MB |
+| Linux ARM64         | `dist/myskill-linux-arm64`      | ~98MB |
+| Linux x86_64        | `dist/myskill-linux-x64`        | ~98MB |
+| Windows x64         | `dist/myskill-windows-x64.exe`  | ~113MB |
+
+> 单架构产物在错的机器上会报 `bad CPU type in executable`。分发时整包发 `dist/` + `myskill_install.sh`，安装脚本会自动按平台挑。
 
 ### 把单文件二进制放到 PATH（分发给他人）
 
-拿到 `myskill` 二进制后：
+#### macOS / Linux —— 用安装脚本（推荐，自动选平台）
 
-#### macOS / Linux —— 用安装脚本（一键）
+把整个 `dist/` 目录和 `myskill_install.sh` 一起发给同事，对方执行：
 
 ```bash
-# 把二进制和 install.sh 放在同一目录，然后：
-bash install.sh                       # 装到 ~/.local/bin (用户级，无需 sudo)
-bash install.sh --system              # 装到 /usr/local/bin (需 sudo)
+bash myskill_install.sh                       # 自动检测 OS/arch，从 ./dist/ 选对应文件
+                                              # 装到 ~/.local/bin (用户级，无需 sudo)
+bash myskill_install.sh --system              # 装到 /usr/local/bin (需 sudo)
 ```
 
-脚本会自动 `chmod +x`、去掉 macOS 的 Gatekeeper 隔离标记，并提示你需不需要把 `~/.local/bin` 加进 PATH。
-
-#### macOS / Linux —— 手动安装
+如果二进制托管在某个 URL，可以用模板形式按平台下载：
 
 ```bash
+bash myskill_install.sh --url-template='https://example.com/myskill-{OS}-{ARCH}'
+# {OS} 会被替换为 darwin/linux，{ARCH} 替换为 arm64/x64
+```
+
+脚本会自动 `chmod +x`、去掉 macOS 的 Gatekeeper 隔离标记、提示是否要把 `~/.local/bin` 加进 PATH。
+
+#### macOS / Linux —— 手动安装（按平台挑）
+
+```bash
+# 1. 看自己平台
+uname -sm        # 输出形如 Darwin arm64 / Linux x86_64
+                 # 对应文件名: darwin-arm64 / linux-x64 等
+
+# 2. 装上去
 mkdir -p ~/.local/bin
-mv ./myskill ~/.local/bin/myskill
+mv dist/myskill-darwin-arm64 ~/.local/bin/myskill   # 替换成对应那一份
 chmod +x ~/.local/bin/myskill
 xattr -d com.apple.quarantine ~/.local/bin/myskill 2>/dev/null || true   # macOS 解隔离
 
-# 把 ~/.local/bin 加到 PATH (zsh / bash 二选一)
+# 3. PATH (zsh / bash 二选一，已有可跳过)
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 myskill --version
 ```
 
-> 系统级安装直接 `sudo mv ./myskill /usr/local/bin/`（PATH 默认就有）。
+> 系统级安装直接 `sudo mv ... /usr/local/bin/myskill`，PATH 默认就有。
 > macOS 首次运行如果弹"无法验证开发者"，去 `系统设置 → 隐私与安全 → 安全性`，底部点"仍要打开"。
 
 #### Windows
 
 ```powershell
 mkdir $HOME\bin -Force
-Move-Item .\myskill.exe $HOME\bin\myskill.exe
+Move-Item .\myskill-windows-x64.exe $HOME\bin\myskill.exe
 [Environment]::SetEnvironmentVariable(
   "Path",
   [Environment]::GetEnvironmentVariable("Path","User") + ";$HOME\bin",
