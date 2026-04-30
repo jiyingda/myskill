@@ -1,0 +1,31 @@
+{
+  "name": "myskill",
+  "version": "0.1.0",
+  "private": true,
+  "description": "本地工具：管理多个 agent (Cursor / Claude / Cline 等) 下散落在不同目录的 skill，可同步、移动、删除、预览。",
+  "type": "module",
+  "main": "server.js",
+  "bin": {
+    "myskill": "bin/myskill.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "public/",
+    "server.js",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node bin/myskill.js",
+    "start:no-open": "node bin/myskill.js --no-open",
+    "dev": "node --watch bin/myskill.js",
+    "link": "npm link",
+    "build:binary": "bun build ./bin/myskill-bun.js --compile --outfile dist/myskill"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

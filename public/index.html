@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>myskill — 本地 Skill 管理</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">⚡</span>
+        <h1>myskill</h1>
+        <span class="subtitle">本地 Skill 管理工具</span>
+      </div>
+      <div class="actions">
+        <button id="btn-add-source" class="btn primary">+ 新增目录</button>
+        <button id="btn-refresh" class="btn">刷新</button>
+        <button id="btn-diff" class="btn">对比 / 同步</button>
+      </div>
+    </header>
+
+    <main id="main">
+      <section id="sources-panel" class="panel">
+        <h2>已配置目录</h2>
+        <div id="sources-list" class="sources-list"></div>
+      </section>
+
+      <section id="skills-panel" class="panel">
+        <h2>Skills</h2>
+        <div id="skills-grid" class="skills-grid"></div>
+      </section>
+    </main>
+
+    <!-- 模态：新增/编辑目录 -->
+    <dialog id="dlg-source">
+      <form method="dialog" class="dlg-form">
+        <h3 id="dlg-source-title">新增目录</h3>
+        <label>显示名称
+          <input name="name" required placeholder="例如：Cursor 用户 skills" />
+        </label>
+        <label>目录路径
+          <input name="path" required placeholder="例如：~/.cursor/skills" />
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="readonly" />
+          只读（禁止写操作，避免误删）
+        </label>
+        <div class="dlg-actions">
+          <button value="cancel" class="btn" formnovalidate>取消</button>
+          <button value="ok" class="btn primary">保存</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- 模态：预览 SKILL.md -->
+    <dialog id="dlg-preview" class="big-dlg">
+      <div class="dlg-form">
+        <h3 id="dlg-preview-title">预览</h3>
+        <pre id="dlg-preview-content"></pre>
+        <div class="dlg-actions">
+          <button id="dlg-preview-close" class="btn">关闭</button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- 模态：复制/移动到 -->
+    <dialog id="dlg-transfer">
+      <form method="dialog" class="dlg-form">
+        <h3 id="dlg-transfer-title">复制到</h3>
+        <p id="dlg-transfer-desc" class="muted"></p>
+        <label>目标目录
+          <select name="toId" required></select>
+        </label>
+        <label>目标名称（可改名）
+          <input name="targetId" required />
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="overwrite" />
+          目标若已存在则覆盖
+        </label>
+        <div class="dlg-actions">
+          <button value="cancel" class="btn" formnovalidate>取消</button>
+          <button value="ok" class="btn primary">执行</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- 模态：对比 / 互相同步 -->
+    <dialog id="dlg-diff" class="big-dlg">
+      <div class="dlg-form">
+        <h3>对比 / 同步</h3>
+        <div class="diff-controls">
+          <label>左侧 <select id="diff-left"></select></label>
+          <span>↔</span>
+          <label>右侧 <select id="diff-right"></select></label>
+          <button id="diff-run" class="btn primary">对比</button>
+        </div>
+        <div id="diff-result" class="diff-result"></div>
+        <div class="dlg-actions">
+          <button id="dlg-diff-close" class="btn">关闭</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
