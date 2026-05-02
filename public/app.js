@@ -5,6 +5,8 @@ const state = {
   sources: [],
   activeSourceId: null,
   skillsBySource: new Map(),
+  revBySource: new Map(),     // sourceId -> { sha, shortSha, date, subject } | null
+  syncingIds: new Set(),
 };
 
 // ---------- API ----------
@@ -47,35 +49,64 @@ function renderSources() {
   }
   for (const s of state.sources) {
     const div = document.createElement('div');
-    div.className = `source-item${state.activeSourceId === s.id ? ' active' : ''}`;
+    div.className = `source-item${state.activeSourceId === s.id ? ' active' : ''}${s.type === 'git' ? ' is-git' : ''}`;
     div.dataset.id = s.id;
     const skillsInfo = state.skillsBySource.get(s.id);
     const count = skillsInfo?.skills?.length ?? '?';
     const exists = skillsInfo?.exists !== false;
+    const isGit = s.type === 'git';
+    const rev = state.revBySource.get(s.id);
+    const isSyncing = state.syncingIds.has(s.id);
+    const subPath = isGit
+      ? `${escapeHTML(s.git?.url || '')}${s.git?.branch ? ' @ ' + escapeHTML(s.git.branch) : ''}`
+      : escapeHTML(s.path || '');
+    const gitBadges = isGit
+      ? `<span class="badge git">GitHub</span>` +
+        (rev?.shortSha ? `<span class="badge sha" title="${escapeHTML(rev.subject || '')}">${escapeHTML(rev.shortSha)}</span>` : '')
+      : '';
     div.innerHTML = `
       <div class="src-head">
         <div class="src-name">${escapeHTML(s.name)}</div>
         <div class="src-actions">
-          <button class="btn small" data-act="edit">编辑</button>
+          ${isGit ? `<button class="btn small" data-act="sync" ${isSyncing ? 'disabled' : ''}>${isSyncing ? '同步中…' : '↻ 同步'}</button>` : `<button class="btn small" data-act="edit">编辑</button>`}
           <button class="btn small danger" data-act="remove">删除</button>
         </div>
       </div>
-      <div class="src-path">${escapeHTML(s.path)}</div>
+      <div class="src-path">${subPath}</div>
       <div class="src-meta">
         <span class="badge">${count} skills</span>
         ${s.readonly ? '<span class="badge ro">只读</span>' : ''}
-        ${exists ? '' : '<span class="badge" style="color:var(--danger);border-color:var(--danger)">目录不存在</span>'}
+        ${gitBadges}
+        ${exists ? '' : `<span class="badge" style="color:var(--danger);border-color:var(--danger)">${isGit ? '未克隆 / 失败' : '目录不存在'}</span>`}
       </div>
     `;
     div.addEventListener('click', (e) => {
       const act = e.target.dataset?.act;
       if (act === 'edit') { e.stopPropagation(); openSourceDialog(s); return; }
       if (act === 'remove') { e.stopPropagation(); confirmRemoveSource(s); return; }
+      if (act === 'sync') { e.stopPropagation(); syncGitSource(s); return; }
       state.activeSourceId = s.id;
       renderSources();
       renderSkills();
     });
     list.appendChild(div);
+  }
+}
+
+async function syncGitSource(s) {
+  if (state.syncingIds.has(s.id)) return;
+  state.syncingIds.add(s.id);
+  renderSources();
+  try {
+    const data = await api(`/api/sources/${s.id}/sync`, { method: 'POST' });
+    if (data?.revision) state.revBySource.set(s.id, data.revision);
+    toast(`已同步：${data?.revision?.shortSha || ''} ${data?.revision?.subject || ''}`.trim(), 'ok');
+    await refreshAll();
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    state.syncingIds.delete(s.id);
+    renderSources();
   }
 }
 
@@ -143,35 +174,95 @@ function escapeHTML(s) {
 }
 
 // ---------- Source dialog ----------
+function setSourceTab(tab) {
+  const dlg = $('#dlg-source');
+  dlg.dataset.tab = tab;
+  dlg.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  dlg.querySelectorAll('.tab-pane').forEach((p) => {
+    p.hidden = p.dataset.pane !== tab;
+  });
+}
+
 function openSourceDialog(existing) {
   const dlg = $('#dlg-source');
   const form = dlg.querySelector('form');
+  const isEditGit = existing?.type === 'git';
   $('#dlg-source-title').textContent = existing ? '编辑目录' : '新增目录';
-  form.name.value = existing?.name ?? '';
-  form.path.value = existing?.path ?? '';
-  form.readonly.checked = !!existing?.readonly;
+
+  form.name.value = isEditGit ? '' : (existing?.name ?? '');
+  form.path.value = isEditGit ? '' : (existing?.path ?? '');
+  form.readonly.checked = !isEditGit && !!existing?.readonly;
+
+  form.git_name.value = isEditGit ? (existing?.name ?? '') : '';
+  form.git_url.value  = isEditGit ? (existing?.git?.url ?? '') : '';
+  form.git_branch.value = isEditGit ? (existing?.git?.branch ?? '') : '';
+  form.git_subdir.value = isEditGit ? (existing?.git?.subdir ?? '') : '';
+
   form.dataset.editId = existing?.id ?? '';
+  form.dataset.editType = existing?.type || 'local';
+
+  setSourceTab(isEditGit ? 'git' : 'local');
+
+  dlg.querySelectorAll('.tab').forEach((btn) => {
+    if (existing) {
+      btn.disabled = true;
+      btn.title = '编辑模式下不能切换类型';
+    } else {
+      btn.disabled = false;
+      btn.title = '';
+    }
+  });
+
   dlg.showModal();
 }
+
+document.querySelectorAll('#dlg-source .tab').forEach((btn) => {
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (btn.disabled) return;
+    setSourceTab(btn.dataset.tab);
+  });
+});
 
 $('#dlg-source').addEventListener('close', async function () {
   if (this.returnValue !== 'ok') return;
   const form = this.querySelector('form');
-  const payload = {
-    name: form.name.value.trim(),
-    path: form.path.value.trim(),
-    readonly: form.readonly.checked,
-  };
-  if (!payload.name || !payload.path) return toast('名称和路径必填', 'error');
+  const tab = this.dataset.tab || 'local';
   try {
-    if (form.dataset.editId) {
-      state.sources = await api(`/api/sources/${form.dataset.editId}`, {
-        method: 'PATCH', body: payload,
-      });
-      toast('目录已更新', 'ok');
+    if (tab === 'git') {
+      const payload = {
+        name: form.git_name.value.trim(),
+        url: form.git_url.value.trim(),
+        branch: form.git_branch.value.trim() || undefined,
+        subdir: form.git_subdir.value.trim() || undefined,
+      };
+      if (!payload.name || !payload.url) return toast('名称和仓库 URL 必填', 'error');
+      if (form.dataset.editId) {
+        state.sources = await api(`/api/sources/${form.dataset.editId}`, {
+          method: 'PATCH',
+          body: { name: payload.name, git: { url: payload.url, branch: payload.branch || 'main', subdir: payload.subdir || '.' } },
+        });
+        toast('GitHub 仓库已更新', 'ok');
+      } else {
+        state.sources = await api('/api/sources/git', { method: 'POST', body: payload });
+        toast('GitHub 仓库已添加（点 ↻ 同步开始 clone）', 'ok');
+      }
     } else {
-      state.sources = await api('/api/sources', { method: 'POST', body: payload });
-      toast('目录已添加', 'ok');
+      const payload = {
+        name: form.name.value.trim(),
+        path: form.path.value.trim(),
+        readonly: form.readonly.checked,
+      };
+      if (!payload.name || !payload.path) return toast('名称和路径必填', 'error');
+      if (form.dataset.editId) {
+        state.sources = await api(`/api/sources/${form.dataset.editId}`, {
+          method: 'PATCH', body: payload,
+        });
+        toast('目录已更新', 'ok');
+      } else {
+        state.sources = await api('/api/sources', { method: 'POST', body: payload });
+        toast('目录已添加', 'ok');
+      }
     }
     await refreshAll();
   } catch (err) {
@@ -377,6 +468,15 @@ async function refreshAll() {
         state.skillsBySource.set(s.id, data);
       } catch {
         state.skillsBySource.set(s.id, { exists: false, skills: [] });
+      }
+      if (s.type === 'git') {
+        try {
+          const rev = await api(`/api/sources/${s.id}/revision`);
+          if (rev) state.revBySource.set(s.id, rev);
+          else state.revBySource.delete(s.id);
+        } catch {
+          state.revBySource.delete(s.id);
+        }
       }
     }),
   );

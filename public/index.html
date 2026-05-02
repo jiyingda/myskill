@@ -36,16 +36,41 @@
     <dialog id="dlg-source">
       <form method="dialog" class="dlg-form">
         <h3 id="dlg-source-title">新增目录</h3>
-        <label>显示名称
-          <input name="name" required placeholder="例如：Cursor 用户 skills" />
-        </label>
-        <label>目录路径
-          <input name="path" required placeholder="例如：~/.cursor/skills" />
-        </label>
-        <label class="checkbox">
-          <input type="checkbox" name="readonly" />
-          只读（禁止写操作，避免误删）
-        </label>
+
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab active" data-tab="local" role="tab">本地目录</button>
+          <button type="button" class="tab" data-tab="git" role="tab">GitHub 仓库</button>
+        </div>
+
+        <div class="tab-pane" data-pane="local">
+          <label>显示名称
+            <input name="name" placeholder="例如：Cursor 用户 skills" />
+          </label>
+          <label>目录路径
+            <input name="path" placeholder="例如：~/.cursor/skills" />
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" name="readonly" />
+            只读（禁止写操作，避免误删）
+          </label>
+        </div>
+
+        <div class="tab-pane" data-pane="git" hidden>
+          <label>显示名称
+            <input name="git_name" placeholder="例如：Anthropic skills" />
+          </label>
+          <label>仓库 URL
+            <input name="git_url" placeholder="https://github.com/anthropics/skills.git" />
+          </label>
+          <label>分支（可选，默认 main）
+            <input name="git_branch" placeholder="main" />
+          </label>
+          <label>子目录（可选，默认仓库根）
+            <input name="git_subdir" placeholder="." />
+          </label>
+          <p class="muted">GitHub 类型 source 默认只读，仅支持公共仓库；首次访问会执行浅克隆 (--depth=1)。</p>
+        </div>
+
         <div class="dlg-actions">
           <button value="cancel" class="btn" formnovalidate>取消</button>
           <button value="ok" class="btn primary">保存</button>

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import {
   loadConfig,
   addSource,
+  addGitSource,
   updateSource,
   removeSource,
   getSource,
@@ -18,11 +19,31 @@ import {
   renameSkill,
   diffSources,
 } from './lib/skills.js';
+import { cloneOrUpdate, getRevision, repoDirFor } from './lib/git.js';
 import { openBrowser as openInBrowser } from './lib/open.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function friendlyError(err) {
+  if (err && err.code === 'GIT_NOT_FOUND') {
+    return '未找到 git 命令。请先安装 git：\n' +
+      '  macOS:  xcode-select --install   或  brew install git\n' +
+      '  Linux:  sudo apt install git / sudo yum install git\n' +
+      '  Windows: https://git-scm.com/download/win';
+  }
+  if (err && err.code === 'GIT_FAILED') {
+    const msg = err.message || '';
+    if (/Repository not found|not found|does not exist/i.test(msg)) {
+      return `仓库不存在或无访问权限。检查 URL 是否正确，或仓库是否为私有（一期仅支持公共仓库）。\n${msg}`;
+    }
+    if (/could not resolve host|Failed to connect|timed out/i.test(msg)) {
+      return `网络不可达，无法访问 GitHub。请检查网络连接 / 代理设置。\n${msg}`;
+    }
+    if (/Authentication failed|terminal prompts disabled/i.test(msg)) {
+      return `需要鉴权，但当前仅支持公共仓库。私有仓库请配置 SSH key 后用 git@github.com:owner/repo.git 形式。\n${msg}`;
+    }
+    return `git 执行失败：${msg}`;
+  }
   if (err && err.code === 'EPERM') {
     return `没有写权限：${err.path || ''}\n可能原因：\n` +
       `1. 服务被沙盒限制（例如在 Cursor agent 里启动），请在普通终端 Terminal.app 里执行 \`npm start\` 重新运行；\n` +
@@ -68,8 +89,22 @@ export function createApp() {
 
   app.get('/api/sources', wrap(async () => (await loadConfig()).sources));
   app.post('/api/sources', wrap(async (req) => (await addSource(req.body)).sources));
+  app.post('/api/sources/git', wrap(async (req) => (await addGitSource(req.body)).sources));
   app.patch('/api/sources/:id', wrap(async (req) => (await updateSource(req.params.id, req.body)).sources));
   app.delete('/api/sources/:id', wrap(async (req) => (await removeSource(req.params.id)).sources));
+
+  app.post('/api/sources/:id/sync', wrap(async (req) => {
+    const src = await getSource(req.params.id);
+    if (src.type !== 'git') throw new Error('该 source 不是 git 类型，无需同步');
+    await cloneOrUpdate(src);
+    const rev = await getRevision(repoDirFor(src));
+    return { ok: true, revision: rev };
+  }));
+  app.get('/api/sources/:id/revision', wrap(async (req) => {
+    const src = await getSource(req.params.id);
+    if (src.type !== 'git') return null;
+    return await getRevision(repoDirFor(src));
+  }));
   app.get('/api/sources/:id/skills', wrap(async (req) => listSkills(await getSource(req.params.id))));
   app.get('/api/sources/:id/skills/:skillId/content', wrap(async (req) => readSkillFile(await getSource(req.params.id), req.params.skillId)));
   app.delete('/api/sources/:id/skills/:skillId', wrap(async (req) => deleteSkill(await getSource(req.params.id), req.params.skillId)));

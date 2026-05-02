@@ -113,6 +113,13 @@ main {
 .source-item .src-meta { display: flex; gap: 8px; margin-top: 6px; font-size: 11px; color: var(--text-soft); }
 .source-item .badge { padding: 1px 6px; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); }
 .source-item .badge.ro { color: var(--warn); border-color: var(--warn); }
+.source-item .badge.git { color: var(--primary); border-color: var(--primary); }
+.source-item .badge.sha {
+  color: var(--text-soft);
+  border-color: var(--border);
+  font-family: ui-monospace, SF Mono, Menlo, monospace;
+}
+.source-item.is-git .src-path { font-family: ui-monospace, SF Mono, Menlo, monospace; font-size: 10px; }
 .source-item .src-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
 .source-item:hover .src-actions { opacity: 1; }
 
@@ -169,6 +176,33 @@ dialog.big-dlg { min-width: 720px; max-width: 92vw; }
 .dlg-form h3 { margin: 0 0 4px; font-size: 16px; }
 .dlg-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-soft); }
 .dlg-form label.checkbox { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
+
+/* Tabs in dialog */
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 2px;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.tabs .tab {
+  flex: 1;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-soft);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+.tabs .tab:hover:not(:disabled) { color: var(--text); }
+.tabs .tab.active { background: var(--bg-soft); color: var(--text); box-shadow: 0 0 0 1px var(--border); }
+.tabs .tab:disabled { opacity: 0.5; cursor: not-allowed; }
+.tab-pane { display: flex; flex-direction: column; gap: 12px; }
+.tab-pane[hidden] { display: none; }
 .dlg-form input[type="text"], .dlg-form input:not([type]), .dlg-form select, .dlg-form textarea {
   padding: 8px 10px;
   border-radius: 7px;

@@ -165,6 +165,38 @@ myskill --version
 > 路径支持 `~` 展开为 home 目录。
 > 不希望某个目录被改写，把它标记为 **只读**，会自动屏蔽改名/移动/删除按钮，同步时也只能"被读"。
 
+## 从 GitHub 同步（手动 pull）
+
+支持把整个 GitHub 仓库当一个 source —— 仓库里每个含 `SKILL.md` 的子目录就是一个 skill。
+
+### 用法
+
+1. 点 **+ 新增目录** → 切到 **GitHub 仓库** 标签页
+2. 填：`显示名称`、`仓库 URL`、`分支（默认 main）`、`子目录（默认仓库根）`
+3. 保存后会出现在左侧，标 **GitHub** 徽章
+4. 点 source 卡片右上角的 **↻ 同步** 按钮，首次会执行浅克隆 (`git clone --depth=1`)，之后是 `git fetch + reset --hard origin/<branch>`
+5. 同步完后正常浏览 / 预览 / **复制到** 你本地的目录（git source 强制只读，不能反向写）
+
+### 缓存位置
+
+| 平台 | 路径 |
+| --- | --- |
+| macOS / Linux | `~/.cache/myskill/repos/<owner>-<repo>@<branch>` |
+| Windows       | `%LOCALAPPDATA%/myskill/repos/<owner>-<repo>@<branch>` |
+| 自定义        | 设置环境变量 `MYSKILL_CACHE=/path/to/cache` |
+
+> 删除一个 git source 不会清理缓存目录（避免误删后重新 clone）。手动清理：直接 `rm -rf` 上面的目录即可。
+
+### 限制
+
+- 一期仅支持 **公共仓库**。私有仓库需要走 SSH（`git@github.com:owner/repo.git`），并自行配好 SSH key。
+- 不支持 pin 到特定 commit，始终跟随指定分支最新。
+- 不会自动定时同步，必须手动点 ↻。
+- 需要本机能调用系统 `git`：
+  - macOS：`xcode-select --install` 或 `brew install git`
+  - Linux：`sudo apt install git` / `sudo yum install git`
+  - Windows：[git-scm.com/download/win](https://git-scm.com/download/win)
+
 ## Skill 目录结构
 
 工具默认每个 skill 是一个**子目录**，目录里至少有 `SKILL.md`：
