@@ -6,12 +6,14 @@
 
 import indexHtml from '../public/index.html' with { type: 'text' };
 import appJs from '../public/app.js' with { type: 'text' };
+import markdownJs from '../public/markdown.js' with { type: 'text' };
 import styleCss from '../public/style.css' with { type: 'text' };
 
 globalThis.__MYSKILL_STATIC__ = {
   '/': { type: 'text/html; charset=utf-8', body: indexHtml },
   '/index.html': { type: 'text/html; charset=utf-8', body: indexHtml },
   '/app.js': { type: 'text/javascript; charset=utf-8', body: appJs },
+  '/markdown.js': { type: 'text/javascript; charset=utf-8', body: markdownJs },
   '/style.css': { type: 'text/css; charset=utf-8', body: styleCss },
 };
 

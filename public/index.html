@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>myskill — 本地 Skill 管理</title>
+    <title>myskill — 本地 Skill / Knowledge 管理</title>
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
@@ -11,8 +11,18 @@
       <div class="brand">
         <span class="logo">⚡</span>
         <h1>myskill</h1>
-        <span class="subtitle">本地 Skill 管理工具</span>
+        <span class="subtitle">本地 Skill / Knowledge 管理工具</span>
       </div>
+      <nav class="domain-tabs" role="tablist">
+        <button class="domain-tab active" data-domain="skill" role="tab">
+          <span class="domain-tab-label">Skills</span>
+          <span class="domain-tab-sub">SKILL.md</span>
+        </button>
+        <button class="domain-tab" data-domain="knowledge" role="tab">
+          <span class="domain-tab-label">Knowledge</span>
+          <span class="domain-tab-sub">KNOWLEDGE.md</span>
+        </button>
+      </nav>
       <div class="actions">
         <button id="btn-add-source" class="btn primary">+ 新增目录</button>
         <button id="btn-refresh" class="btn">刷新</button>
@@ -22,13 +32,18 @@
 
     <main id="main">
       <section id="sources-panel" class="panel">
-        <h2>已配置目录</h2>
+        <h2 id="sources-panel-title">已配置目录</h2>
         <div id="sources-list" class="sources-list"></div>
       </section>
 
-      <section id="skills-panel" class="panel">
-        <h2>Skills</h2>
-        <div id="skills-grid" class="skills-grid"></div>
+      <section id="items-panel" class="panel">
+        <div class="panel-head">
+          <h2 id="items-panel-title">Skills</h2>
+          <div class="panel-actions">
+            <button id="btn-rebuild-index" class="btn small" hidden>↻ 重建 INDEX</button>
+          </div>
+        </div>
+        <div id="items-grid" class="skills-grid"></div>
       </section>
     </main>
 
@@ -78,13 +93,38 @@
       </form>
     </dialog>
 
-    <!-- 模态：预览 SKILL.md -->
+    <!-- 模态：预览 SKILL.md / KNOWLEDGE.md / INDEX.md -->
     <dialog id="dlg-preview" class="big-dlg">
       <div class="dlg-form">
-        <h3 id="dlg-preview-title">预览</h3>
-        <pre id="dlg-preview-content"></pre>
+        <div class="dlg-head">
+          <h3 id="dlg-preview-title">预览</h3>
+          <div class="dlg-head-actions">
+            <div class="seg" id="dlg-preview-mode" role="tablist">
+              <button type="button" class="seg-btn active" data-mode="rendered" role="tab">渲染</button>
+              <button type="button" class="seg-btn" data-mode="raw" role="tab">原文</button>
+            </div>
+          </div>
+        </div>
+        <div id="dlg-preview-rendered" class="md-body"></div>
+        <pre id="dlg-preview-raw" hidden></pre>
         <div class="dlg-actions">
           <button id="dlg-preview-close" class="btn">关闭</button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- 模态：知识包 sources.json -->
+    <dialog id="dlg-sources" class="big-dlg">
+      <div class="dlg-form">
+        <h3 id="dlg-sources-title">来源 sources.json</h3>
+        <div id="dlg-sources-meta" class="sources-meta"></div>
+        <div id="dlg-sources-list" class="sources-pages"></div>
+        <details class="sources-raw">
+          <summary>原始 JSON</summary>
+          <pre id="dlg-sources-raw"></pre>
+        </details>
+        <div class="dlg-actions">
+          <button id="dlg-sources-close" class="btn">关闭</button>
         </div>
       </div>
     </dialog>
@@ -114,7 +154,7 @@
     <!-- 模态：对比 / 互相同步 -->
     <dialog id="dlg-diff" class="big-dlg">
       <div class="dlg-form">
-        <h3>对比 / 同步</h3>
+        <h3 id="dlg-diff-title">对比 / 同步</h3>
         <div class="diff-controls">
           <label>左侧 <select id="diff-left"></select></label>
           <span>↔</span>

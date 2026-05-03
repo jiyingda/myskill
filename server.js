@@ -8,6 +8,7 @@ import {
   updateSource,
   removeSource,
   getSource,
+  listSources,
   getConfigPath,
 } from './lib/config.js';
 import {
@@ -19,6 +20,18 @@ import {
   renameSkill,
   diffSources,
 } from './lib/skills.js';
+import {
+  listKnowledge,
+  readKnowledgeFile,
+  readKnowledgeSourcesJson,
+  readKnowledgeIndex,
+  rebuildKnowledgeIndex,
+  deleteKnowledge,
+  copyKnowledge,
+  moveKnowledge,
+  renameKnowledge,
+  diffKnowledgeSources,
+} from './lib/knowledge.js';
 import { cloneOrUpdate, getRevision, repoDirFor } from './lib/git.js';
 import { openBrowser as openInBrowser } from './lib/open.js';
 
@@ -87,48 +100,97 @@ export function createApp() {
   app.use(embeddedStaticMiddleware);
   app.use(express.static(path.join(__dirname, 'public')));
 
-  app.get('/api/sources', wrap(async () => (await loadConfig()).sources));
-  app.post('/api/sources', wrap(async (req) => (await addSource(req.body)).sources));
-  app.post('/api/sources/git', wrap(async (req) => (await addGitSource(req.body)).sources));
-  app.patch('/api/sources/:id', wrap(async (req) => (await updateSource(req.params.id, req.body)).sources));
-  app.delete('/api/sources/:id', wrap(async (req) => (await removeSource(req.params.id)).sources));
+  // ---------------- Skill sources ----------------
+  app.get('/api/sources', wrap(async () => listSources('skill')));
+  app.post('/api/sources', wrap(async (req) => (await addSource(req.body, 'skill')).sources));
+  app.post('/api/sources/git', wrap(async (req) => (await addGitSource(req.body, 'skill')).sources));
+  app.patch('/api/sources/:id', wrap(async (req) => (await updateSource(req.params.id, req.body, 'skill')).sources));
+  app.delete('/api/sources/:id', wrap(async (req) => (await removeSource(req.params.id, 'skill')).sources));
 
   app.post('/api/sources/:id/sync', wrap(async (req) => {
-    const src = await getSource(req.params.id);
+    const src = await getSource(req.params.id, 'skill');
     if (src.type !== 'git') throw new Error('该 source 不是 git 类型，无需同步');
     await cloneOrUpdate(src);
     const rev = await getRevision(repoDirFor(src));
     return { ok: true, revision: rev };
   }));
   app.get('/api/sources/:id/revision', wrap(async (req) => {
-    const src = await getSource(req.params.id);
+    const src = await getSource(req.params.id, 'skill');
     if (src.type !== 'git') return null;
     return await getRevision(repoDirFor(src));
   }));
-  app.get('/api/sources/:id/skills', wrap(async (req) => listSkills(await getSource(req.params.id))));
-  app.get('/api/sources/:id/skills/:skillId/content', wrap(async (req) => readSkillFile(await getSource(req.params.id), req.params.skillId)));
-  app.delete('/api/sources/:id/skills/:skillId', wrap(async (req) => deleteSkill(await getSource(req.params.id), req.params.skillId)));
+  app.get('/api/sources/:id/skills', wrap(async (req) => listSkills(await getSource(req.params.id, 'skill'))));
+  app.get('/api/sources/:id/skills/:skillId/content', wrap(async (req) => readSkillFile(await getSource(req.params.id, 'skill'), req.params.skillId)));
+  app.delete('/api/sources/:id/skills/:skillId', wrap(async (req) => deleteSkill(await getSource(req.params.id, 'skill'), req.params.skillId)));
   app.patch('/api/sources/:id/skills/:skillId', wrap(async (req) => {
     if (!req.body?.newId) throw new Error('newId 必填');
-    return renameSkill(await getSource(req.params.id), req.params.skillId, req.body.newId);
+    return renameSkill(await getSource(req.params.id, 'skill'), req.params.skillId, req.body.newId);
   }));
   app.post('/api/skills/copy', wrap(async (req) => {
     const { fromId, toId, skillId, targetId, overwrite } = req.body ?? {};
     if (!fromId || !toId || !skillId) throw new Error('fromId / toId / skillId 必填');
-    const [from, to] = await Promise.all([getSource(fromId), getSource(toId)]);
+    const [from, to] = await Promise.all([getSource(fromId, 'skill'), getSource(toId, 'skill')]);
     return copySkill({ from, to, skillId, targetId, overwrite });
   }));
   app.post('/api/skills/move', wrap(async (req) => {
     const { fromId, toId, skillId, targetId, overwrite } = req.body ?? {};
     if (!fromId || !toId || !skillId) throw new Error('fromId / toId / skillId 必填');
-    const [from, to] = await Promise.all([getSource(fromId), getSource(toId)]);
+    const [from, to] = await Promise.all([getSource(fromId, 'skill'), getSource(toId, 'skill')]);
     return moveSkill({ from, to, skillId, targetId, overwrite });
   }));
   app.get('/api/diff', wrap(async (req) => {
     const { left, right } = req.query;
     if (!left || !right) throw new Error('left 和 right query 必填');
-    const [l, r] = await Promise.all([getSource(left), getSource(right)]);
+    const [l, r] = await Promise.all([getSource(left, 'skill'), getSource(right, 'skill')]);
     return diffSources(l, r);
+  }));
+
+  // ---------------- Knowledge sources ----------------
+  app.get('/api/knowledge-sources', wrap(async () => listSources('knowledge')));
+  app.post('/api/knowledge-sources', wrap(async (req) => (await addSource(req.body, 'knowledge')).knowledgeSources));
+  app.post('/api/knowledge-sources/git', wrap(async (req) => (await addGitSource(req.body, 'knowledge')).knowledgeSources));
+  app.patch('/api/knowledge-sources/:id', wrap(async (req) => (await updateSource(req.params.id, req.body, 'knowledge')).knowledgeSources));
+  app.delete('/api/knowledge-sources/:id', wrap(async (req) => (await removeSource(req.params.id, 'knowledge')).knowledgeSources));
+
+  app.post('/api/knowledge-sources/:id/sync', wrap(async (req) => {
+    const src = await getSource(req.params.id, 'knowledge');
+    if (src.type !== 'git') throw new Error('该 source 不是 git 类型，无需同步');
+    await cloneOrUpdate(src);
+    const rev = await getRevision(repoDirFor(src));
+    return { ok: true, revision: rev };
+  }));
+  app.get('/api/knowledge-sources/:id/revision', wrap(async (req) => {
+    const src = await getSource(req.params.id, 'knowledge');
+    if (src.type !== 'git') return null;
+    return await getRevision(repoDirFor(src));
+  }));
+  app.get('/api/knowledge-sources/:id/items', wrap(async (req) => listKnowledge(await getSource(req.params.id, 'knowledge'))));
+  app.get('/api/knowledge-sources/:id/index', wrap(async (req) => readKnowledgeIndex(await getSource(req.params.id, 'knowledge'))));
+  app.post('/api/knowledge-sources/:id/index/rebuild', wrap(async (req) => rebuildKnowledgeIndex(await getSource(req.params.id, 'knowledge'))));
+  app.get('/api/knowledge-sources/:id/items/:itemId/content', wrap(async (req) => readKnowledgeFile(await getSource(req.params.id, 'knowledge'), req.params.itemId)));
+  app.get('/api/knowledge-sources/:id/items/:itemId/sources', wrap(async (req) => readKnowledgeSourcesJson(await getSource(req.params.id, 'knowledge'), req.params.itemId)));
+  app.delete('/api/knowledge-sources/:id/items/:itemId', wrap(async (req) => deleteKnowledge(await getSource(req.params.id, 'knowledge'), req.params.itemId)));
+  app.patch('/api/knowledge-sources/:id/items/:itemId', wrap(async (req) => {
+    if (!req.body?.newId) throw new Error('newId 必填');
+    return renameKnowledge(await getSource(req.params.id, 'knowledge'), req.params.itemId, req.body.newId);
+  }));
+  app.post('/api/knowledge/copy', wrap(async (req) => {
+    const { fromId, toId, itemId, targetId, overwrite } = req.body ?? {};
+    if (!fromId || !toId || !itemId) throw new Error('fromId / toId / itemId 必填');
+    const [from, to] = await Promise.all([getSource(fromId, 'knowledge'), getSource(toId, 'knowledge')]);
+    return copyKnowledge({ from, to, itemId, targetId, overwrite });
+  }));
+  app.post('/api/knowledge/move', wrap(async (req) => {
+    const { fromId, toId, itemId, targetId, overwrite } = req.body ?? {};
+    if (!fromId || !toId || !itemId) throw new Error('fromId / toId / itemId 必填');
+    const [from, to] = await Promise.all([getSource(fromId, 'knowledge'), getSource(toId, 'knowledge')]);
+    return moveKnowledge({ from, to, itemId, targetId, overwrite });
+  }));
+  app.get('/api/knowledge-diff', wrap(async (req) => {
+    const { left, right } = req.query;
+    if (!left || !right) throw new Error('left 和 right query 必填');
+    const [l, r] = await Promise.all([getSource(left, 'knowledge'), getSource(right, 'knowledge')]);
+    return diffKnowledgeSources(l, r);
   }));
 
   return app;

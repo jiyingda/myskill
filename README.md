@@ -1,12 +1,14 @@
 # myskill
 
-本地的 **Skill 目录管理工具**。统一管理散落在不同 agent (Cursor / Claude / Cline 等) 下的 skill 文件夹，支持：
+本地的 **Skill / Knowledge 目录管理工具**。统一管理散落在不同 agent (Cursor / Claude / Cline 等) 下的 skill 文件夹，以及 `extract-system-knowledge` 类工作流产出的知识包，支持：
 
-- 配置 **多个 skill 源目录**（可标记为只读）
-- 浏览每个目录下的 skill（自动解析 `SKILL.md` 标题与描述）
-- **预览** SKILL.md 内容
-- **复制 / 移动 / 改名 / 删除** 单个 skill
-- **目录对比 + 互相同步**：对比两个目录间的 skill 差异，逐个一键同步（→ / ←）
+- 配置 **多个源目录**（本地路径或 GitHub 仓库，可标记为只读）
+- 顶部 **Skills / Knowledge** 双视图切换，互不干扰
+- **Skills**：浏览每个目录下的 skill（自动解析 `SKILL.md` 标题与描述）
+- **Knowledge**：浏览每个知识库下的知识包（自动解析 `KNOWLEDGE.md` frontmatter 中的 `system / status / generated_at` 等，并展示 `sources.json` 来源页摘要）
+- **预览** SKILL.md / KNOWLEDGE.md 全文 + 单独查看 sources.json 来源结构
+- **复制 / 移动 / 改名 / 删除** 单个条目
+- **目录对比 + 互相同步**：对比两个目录间的差异，逐个一键同步（→ / ←）
 
 ## 运行
 
@@ -129,6 +131,86 @@ myskill --version
 
 如果点"复制到…"提示 `EPERM / 没有写权限`，参考[排错](#排错)。
 
+## 代码更新后如何重新打包 / 升级 `myskill` 命令
+
+跟 [运行](#运行) 三种方式一一对应——**当前用哪种方式装的就按哪种方式升级**：
+
+### 方式一：本地直接跑
+
+源码改完直接重启就好：
+
+```bash
+cd myskill
+git pull              # 如果是从仓库拉的
+npm install           # 仅当 package.json 变化才需要
+npm start             # 重启即可，前端浏览器刷新一下
+```
+
+> 如果之前是 `npm run dev` 起的（带 `node --watch`），改文件会自动重启，浏览器手动刷新即可。
+
+### 方式二：注册了全局 `myskill`（`npm link`）
+
+`npm link` 是**符号链接**到源码目录，所以源码改完不需要重新 link：
+
+```bash
+cd myskill
+git pull              # 拉最新代码
+npm install           # 仅当依赖变化才需要
+
+# 直接重启已经在跑的 myskill：
+# 1. 在跑着的终端按 Ctrl+C
+# 2. 再 `myskill` 一次
+
+myskill --version     # 验证
+```
+
+> 只有 `bin/myskill.js` 路径或 `package.json#bin` 字段变了，才需要 `npm unlink -g myskill && npm link` 重新挂一次。
+
+### 方式三：用了单文件二进制（Bun 打包）
+
+二进制是把当时的源码 + 前端静态资源**打包进二进制**了，源码改完必须重打：
+
+```bash
+cd myskill
+git pull
+npm install                          # 依赖变了才需要
+
+npm run build:binary                 # 仅当前平台（最快，~10s），产出 dist/myskill
+# 或者：
+npm run build:all                    # 一次产出全部 5 个平台二进制（用于分发）
+```
+
+> 第一次构建某个非当前平台时 Bun 会自动下载该平台的 runtime（几十 MB，会卡一下），之后构建会复用 Bun 的本地缓存。
+
+打包完后，把新二进制覆盖到原先的 PATH 位置，**自己机器**最快的更新方式：
+
+```bash
+# macOS / Linux：用安装脚本一键覆盖（推荐）
+bash myskill_install.sh              # 默认装到 ~/.local/bin/myskill，会直接覆盖
+
+# 或手动覆盖
+cp dist/myskill-darwin-arm64 ~/.local/bin/myskill   # 按平台换文件
+chmod +x ~/.local/bin/myskill
+xattr -d com.apple.quarantine ~/.local/bin/myskill 2>/dev/null || true
+
+# 系统级安装的覆盖
+sudo cp dist/myskill-darwin-arm64 /usr/local/bin/myskill
+sudo chmod +x /usr/local/bin/myskill
+```
+
+```powershell
+# Windows
+Copy-Item -Force .\dist\myskill-windows-x64.exe $HOME\bin\myskill.exe
+```
+
+更新完用 `myskill --version` / `which myskill` 确认走的是新版二进制。
+
+> 如果旧的 `myskill` 还在跑，先 `Ctrl+C` 关掉旧实例再覆盖二进制，否则 Linux/macOS 上虽然能覆盖但旧进程还跑的是旧版；Windows 上文件被占用会直接拒绝覆盖。
+
+### 给同事分发更新
+
+整包重发 `dist/` + `myskill_install.sh`，对方再跑一次 `bash myskill_install.sh` 即可（脚本会直接覆盖旧的）。如果二进制托管在 URL，他们用之前的 `--url-template` 重跑一次就升级到最新。
+
 ## 配置文件
 
 第一次启动会在用户目录下生成配置文件：
@@ -141,7 +223,7 @@ myskill --version
 
 > 老版本把配置写在源码目录的 `config.json`，启动时会自动迁移到上面的位置。
 
-默认包含 Cursor 常见的两个目录：
+默认包含 Cursor 常见的几个目录，分别落在 `sources`（Skills）和 `knowledgeSources`（Knowledge）下：
 
 ```json
 {
@@ -149,6 +231,9 @@ myskill --version
     { "id": "cursor-user",    "name": "Cursor 用户 skills",  "path": "~/.cursor/skills",        "readonly": false },
     { "id": "cursor-builtin", "name": "Cursor 内置 skills",  "path": "~/.cursor/skills-cursor", "readonly": false },
     { "id": "claude-code",    "name": "Claude Code skills",  "path": "~/.claude/skills",        "readonly": false }
+  ],
+  "knowledgeSources": [
+    { "id": "cursor-knowledge", "name": "Cursor 知识库", "path": "~/.cursor/knowledge", "readonly": false }
   ]
 }
 ```
@@ -197,6 +282,52 @@ myskill --version
   - Linux：`sudo apt install git` / `sudo yum install git`
   - Windows：[git-scm.com/download/win](https://git-scm.com/download/win)
 
+## Knowledge 目录结构
+
+Knowledge 与 Skill 平行：把每个**知识包**当作一个子目录，子目录里至少有一个 `KNOWLEDGE.md`，可以再附带一份 `sources.json` 描述来源页：
+
+```
+~/.cursor/knowledge/
+├── INDEX.md                    # 可选，整个知识库的索引（点 source 卡片下方按钮可预览）
+├── focus-workbench-knowledge/
+│   ├── KNOWLEDGE.md
+│   └── sources.json
+└── hermes-knowledge/
+    ├── KNOWLEDGE.md
+    └── sources.json
+```
+
+`KNOWLEDGE.md` 的 frontmatter 推荐字段（来自 `extract-system-knowledge` 技能产物）：
+
+```md
+---
+name: focus-workbench
+system: Focus 工作台
+description: 一句话说明这个知识包覆盖的系统范围
+generated_at: 2026-05-02
+generator: extract-system-knowledge@v1
+status: draft   # draft / ready / archived 等，会在卡片上显示 badge
+---
+# Focus 工作台 知识包（2026-05-02）
+...
+```
+
+`sources.json` 是来源页的结构化清单，工具会展示 `system / captured_at / pages`：
+
+```json
+{
+  "schema_version": 1,
+  "system": "Focus 工作台",
+  "captured_at": "2026-05-02T17:40:00+08:00",
+  "captured_via": ["get_confluence_content"],
+  "pages": [
+    { "pageId": "...", "title": "...", "url": "...", "depth": 0 }
+  ]
+}
+```
+
+在 Knowledge 视图里点知识包卡片的 **来源** 按钮可以分页查看 `sources.json`，并支持点开原始 JSON。
+
 ## Skill 目录结构
 
 工具默认每个 skill 是一个**子目录**，目录里至少有 `SKILL.md`：
@@ -226,10 +357,12 @@ description: 读取 Confluence 页面内容并提取图片
 
 ## 主要功能演示
 
-- **左侧目录卡片**：展示每个 source 的 skill 数量；hover 出现编辑/删除按钮；点击后右侧切换到该目录的 skill 列表。
+- **顶部 Skills / Knowledge 切换**：左右两套数据互相独立，但共享同一个对话框、同一组操作流程，零学习成本。
+- **左侧目录卡片**：展示每个 source 的条目数量；hover 出现编辑/删除按钮；点击后右侧切换到该目录的列表。
 - **Skill 卡片**：展示标题 / id / 描述 / 文件数 / 占用大小，按钮包含 `预览 / 复制到… / 移动到… / 改名 / 删除`。
+- **Knowledge 卡片**：展示 `system / status / generated_at` 标签 + `sources.json` 页数，按钮多一个 **来源**：弹窗里能直接点 page url 跳转 Confluence，并展开看原始 JSON。
 - **复制到… / 移动到…**：弹出选择目标目录，可改名、可勾选"覆盖已存在"。
-- **对比 / 同步**：右上角 `对比 / 同步` 按钮，选择左右两个目录后一键比对，每行显示状态 (`same / different / only-left / only-right`)，点 `→` 或 `←` 即可单向同步覆盖。
+- **对比 / 同步**：右上角 `对比 / 同步` 按钮，按照当前视图（Skills 或 Knowledge）比对两个目录，每行显示状态 (`same / different / only-left / only-right`)，点 `→` 或 `←` 即可单向同步覆盖。
 
 ## 目录结构
 
@@ -240,23 +373,31 @@ myskill/
 │   └── myskill.js         # CLI 入口（参数解析 + 自动开浏览器 + 端口顺延）
 ├── server.js              # Express server，导出 startServer({ port, openBrowser })
 ├── lib/
-│   ├── config.js          # 配置读写（用户级路径，自动迁移旧配置）
-│   ├── skills.js          # skill 扫描 / CRUD / diff
+│   ├── config.js          # 配置读写（user-level，sources + knowledgeSources 两个集合）
+│   ├── git.js             # GitHub 仓库浅克隆 / 增量拉取
+│   ├── scan.js            # 通用扫描工具（frontmatter / dirSize / hash / 文件查找等）
+│   ├── skills.js          # skill (SKILL.md) 扫描 / CRUD / diff
+│   ├── knowledge.js       # knowledge (KNOWLEDGE.md + sources.json) 扫描 / CRUD / diff
 │   └── open.js            # 跨平台打开浏览器（零依赖）
 └── public/
     ├── index.html
-    ├── app.js             # 前端 SPA (原生 JS)
+    ├── app.js             # 前端 SPA (原生 JS，Skills / Knowledge 双视图)
     └── style.css
 ```
 
 ## REST API（如果你想脚本化使用）
 
+### Skills
+
 | Method | URL | 说明 |
 | --- | --- | --- |
-| `GET`    | `/api/sources` | 列出所有目录 |
+| `GET`    | `/api/sources` | 列出所有 skill 目录 |
 | `POST`   | `/api/sources` | 新增目录 `{ name, path, readonly? }` |
+| `POST`   | `/api/sources/git` | 新增 GitHub 仓库 `{ name, url, branch?, subdir? }` |
 | `PATCH`  | `/api/sources/:id` | 更新目录 |
 | `DELETE` | `/api/sources/:id` | 移除（不删本地文件） |
+| `POST`   | `/api/sources/:id/sync` | git 同步（仅 git 类型） |
+| `GET`    | `/api/sources/:id/revision` | git 当前 revision |
 | `GET`    | `/api/sources/:id/skills` | 列出该目录下的 skills |
 | `GET`    | `/api/sources/:id/skills/:skillId/content` | 读取 SKILL.md 内容 |
 | `PATCH`  | `/api/sources/:id/skills/:skillId` | 改名 `{ newId }` |
@@ -264,6 +405,29 @@ myskill/
 | `POST`   | `/api/skills/copy` | 复制 `{ fromId, toId, skillId, targetId?, overwrite? }` |
 | `POST`   | `/api/skills/move` | 移动（同上 payload） |
 | `GET`    | `/api/diff?left=&right=` | 两个目录的差异 |
+
+### Knowledge
+
+结构与 Skills 几乎一一对应，把 `/api/sources` 换成 `/api/knowledge-sources`，把 `skills` 换成 `items`，把 `skillId` 换成 `itemId`：
+
+| Method | URL | 说明 |
+| --- | --- | --- |
+| `GET`    | `/api/knowledge-sources` | 列出所有 knowledge 目录 |
+| `POST`   | `/api/knowledge-sources` | 新增本地目录 |
+| `POST`   | `/api/knowledge-sources/git` | 新增 GitHub 仓库 |
+| `PATCH`  | `/api/knowledge-sources/:id` | 更新目录 |
+| `DELETE` | `/api/knowledge-sources/:id` | 移除 |
+| `POST`   | `/api/knowledge-sources/:id/sync` | git 同步 |
+| `GET`    | `/api/knowledge-sources/:id/revision` | git 当前 revision |
+| `GET`    | `/api/knowledge-sources/:id/items` | 列出知识包 |
+| `GET`    | `/api/knowledge-sources/:id/index` | 读取 INDEX.md（若存在） |
+| `GET`    | `/api/knowledge-sources/:id/items/:itemId/content` | 读 KNOWLEDGE.md |
+| `GET`    | `/api/knowledge-sources/:id/items/:itemId/sources` | 读 sources.json (含解析后的 `data`) |
+| `PATCH`  | `/api/knowledge-sources/:id/items/:itemId` | 改名 `{ newId }` |
+| `DELETE` | `/api/knowledge-sources/:id/items/:itemId` | 删除 |
+| `POST`   | `/api/knowledge/copy` | 复制 `{ fromId, toId, itemId, targetId?, overwrite? }` |
+| `POST`   | `/api/knowledge/move` | 移动 |
+| `GET`    | `/api/knowledge-diff?left=&right=` | 两个目录的差异 |
 
 ## 注意事项
 
