@@ -799,7 +799,6 @@ async function refreshAll() {
   await Promise.all([refreshDomain('skill'), refreshDomain('knowledge')]);
   renderSources();
   renderItems();
-  renderSourcesExtras();
 }
 
 document.body.dataset.domain = state.activeDomain;

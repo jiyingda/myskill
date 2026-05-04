@@ -3,3 +3,7 @@ node_modules/
 *.log
 dist/
 config.json
+
+# Bun compile 临时产物（常见 `.xxxxxxxx-00000000.bun-build`）
+*.bun-build
+.*.bun-build
