@@ -357,7 +357,11 @@ function renderItemCard(src, item) {
     const sourcesPart = item.sources
       ? `<span title="${escapeHTML(item.sources.path || '')}">${item.sources.pages ?? 0} 页 sources</span>`
       : `<span class="muted">无 sources.json</span>`;
+    const symlinkBtn = item.symlinkOf
+      ? `<button class="symlink-btn" data-act="symlink" title="软链接">🔗</button>`
+      : '';
     card.innerHTML = `
+      ${symlinkBtn}
       <div class="skill-title">${escapeHTML(item.title)}</div>
       <div class="skill-id">${escapeHTML(item.id)}</div>
       <div class="kn-tags">
@@ -381,7 +385,11 @@ function renderItemCard(src, item) {
       </div>
     `;
   } else {
+    const symlinkBtn = item.symlinkOf
+      ? `<button class="symlink-btn" data-act="symlink" title="软链接">🔗</button>`
+      : '';
     card.innerHTML = `
+      ${symlinkBtn}
       <div class="skill-title">${escapeHTML(item.title)}</div>
       <div class="skill-id">${escapeHTML(item.id)}</div>
       <div class="skill-desc">${escapeHTML(item.description || '（无描述）')}</div>
@@ -408,6 +416,15 @@ function renderItemCard(src, item) {
       else if (act === 'move') openTransferDialog('move', src, item);
       else if (act === 'rename') await renameItemFlow(src, item);
       else if (act === 'delete') await deleteItemFlow(src, item);
+      else if (act === 'symlink') {
+        const target = item.symlinkOf || '';
+        const el = $('#toast');
+        el.textContent = `🔗 ${target}`;
+        el.className = 'toast show ok';
+        clearTimeout(toastTimer);
+        try { await navigator.clipboard.writeText(target); el.textContent += '（已复制）'; } catch {}
+        toastTimer = setTimeout(() => el.classList.remove('show'), 5000);
+      }
     } catch (err) {
       toast(err.message, 'error');
     }
